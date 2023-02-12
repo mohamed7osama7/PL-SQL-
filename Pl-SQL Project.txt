@@ -1,0 +1,40 @@
+declare
+ cursor pk_cursor is
+ 
+ select distinct ab.table_name, ac.column_name, cd.data_type
+ from user_constraints ab join user_cons_columns ac
+ on ab.table_name = ac.table_name and ac.constraint_name = ab.constraint_name
+ join user_tab_columns cd
+ on cd.table_name = ac.table_name
+ where upper(CD.DATA_TYPE) = upper('number') and upper(ab.constraint_type) =
+upper('p')
+ and ac.column_name not in ('START_DATE','JOB_ID','COUNTRY_ID');
+ 
+ get_max number(8,2);
+ seq_cnt number(8,2);
+begin
+ 
+ for seq_record in pk_cursor loop
+ execute immediate 'select (nvl(max('||seq_record.column_name||'),0)+1) from ' || 
+seq_record.table_name into get_max;
+ select count (*)
+ into seq_cnt
+ from USER_SEQUENCES
+ where SEQUENCE_NAME = seq_record.table_name||'_SEQ';
+ 
+ if seq_cnt = 0 then
+ execute immediate 'create sequence ' ||seq_record.table_name||'_SEQ start with '|| 
+get_max;
+ else
+ execute immediate 'drop sequence '||seq_record.table_name||'_SEQ';
+ execute immediate 'create sequence ' ||seq_record.table_name||'_SEQ start with '|| 
+get_max;
+ end if ;
+ -- create a dynamic trigger
+ execute immediate 'create or replace trigger ' || seq_record.table_name||'_TRG' ||' before 
+insert on '
+ || seq_record.table_name ||' for each row ' ||' begin ' ||':new.'||seq_record.column_name
+|| ' := ' || seq_record.table_name||'_SEQ.nextval;' ||'end;';
+ end loop;
+ 
+end;
